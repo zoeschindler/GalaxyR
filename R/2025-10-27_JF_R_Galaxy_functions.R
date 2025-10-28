@@ -2,7 +2,7 @@
 ## written by Julian Frey
 ## 2025-10-27
 
-#' Start a session with the GALAXY API 
+#' Start a session with the GALAXY API
 #' @param galaxy_url Your Galaxy API key
 #' @param name Name of the history to create
 #' @return history_id The ID of the created history
@@ -51,11 +51,11 @@ galaxy_upload <- function(input_file, history_id, galaxy_url = "https://usegalax
   api_key <- Sys.getenv("GALAXY_API_KEY")
   username <- Sys.getenv("GALAXY_USERNAME")
   password <- Sys.getenv("GALAXY_PASSWORD")
-  
+
   username_enc <- utils::URLencode(username, reserved = TRUE)
   password_enc <- utils::URLencode(password, reserved = TRUE)
   ftp_url <- paste0("ftp://", username_enc, ":", password_enc, "@", galaxy_ftp, "/")
-  
+
   # UPLOAD using ftp
   system2(
     "curl",
@@ -65,10 +65,10 @@ galaxy_upload <- function(input_file, history_id, galaxy_url = "https://usegalax
     ),
     stdout = TRUE, stderr = TRUE
   )
-  
+
   # fetch the dataset using API
   ftp_filename <- basename(input_file)
-  
+
   fetch_payload <- list(
     history_id = history_id,
     targets = list(list(
@@ -81,34 +81,43 @@ galaxy_upload <- function(input_file, history_id, galaxy_url = "https://usegalax
       ))
     ))
   )
-  
+
   res <- httr::POST(
     paste0(galaxy_url, "/api/tools/fetch"),
     httr::add_headers(`x-api-key` = api_key, `Content-Type` = "application/json"),
     body = jsonlite::toJSON(fetch_payload, auto_unbox = TRUE)
   )
-  
+
   httr::stop_for_status(res)
   upload_result <- httr::content(res, "parsed")
   #print(upload_result)
-  
+
   dataset_id <- upload_result$outputs[[1]]$id
   return(dataset_id)
 }
 
+#' Start a Galaxy workflow with a given dataset as input
+#'
+#' @param dataset_id The ID of the input dataset in Galaxy
+#' @param workflow_id The ID of the workflow to run
+#' @param galaxy_url Base URL of the Galaxy instance
+#'
+#' @returns invocation_id The ID of the started workflow invocation
+#' @export galaxy_start_workflow
+#'
 galaxy_start_workflow <- function(dataset_id, workflow_id, galaxy_url = "https://usegalaxy.eu"){
   api_key <- Sys.getenv("GALAXY_API_KEY")
   run_url <- paste0(galaxy_url, "/api/workflows/", workflow_id, "/invocations")
   run_body <- list(
     inputs = setNames(list(list(src = "hda", id = dataset_id)), "0")  # map input 0
   )
-  
+
   run_res <- httr::POST(
     run_url,
     httr::add_headers(`x-api-key` = api_key, `Content-Type` = "application/json"),
     body = jsonlite::toJSON(run_body, auto_unbox = TRUE)
   )
-  
+
   httr::stop_for_status(run_res)
   invocation <- httr::content(run_res, "parsed")
   invocation_id <- invocation$id
@@ -128,7 +137,7 @@ galaxy_poll_workflow <- function(invocation_id, galaxy_url = "https://usegalaxy.
   api_key <- Sys.getenv("GALAXY_API_KEY")
   repeat {
     Sys.sleep(poll_interval)
-    
+
     # Get workflow invocation
     status_res <- httr::GET(
       paste0(galaxy_url, "/api/invocations/", invocation_id),
@@ -136,18 +145,18 @@ galaxy_poll_workflow <- function(invocation_id, galaxy_url = "https://usegalaxy.
     )
     httr::stop_for_status(status_res)
     status <- httr::content(status_res, "parsed")
-    
+
     steps <- status$steps
-    
+
     # Get all job IDs from the steps
     job_ids <- sapply(steps, function(step) step$job_id)
     job_ids <- job_ids[!sapply(job_ids, is.null)]
-    
+
     if (length(job_ids) == 0) {
       message(Sys.time(), " ,No jobs yet, waiting...")
       next
     }
-    
+
     # Check each job state
     job_states <- sapply(job_ids, function(jid) {
       job_res <- httr::GET(
@@ -157,9 +166,9 @@ galaxy_poll_workflow <- function(invocation_id, galaxy_url = "https://usegalaxy.
       job <- httr::content(job_res, "parsed")
       job$state
     })
-    
+
     message(Sys.time(), " ,Job states: ", paste(job_states, collapse = ", "))
-    
+
     if (all(job_states == "ok")) {
       message("All jobs finished successfully!")
       break
@@ -169,7 +178,7 @@ galaxy_poll_workflow <- function(invocation_id, galaxy_url = "https://usegalaxy.
       break
     }
   }
-  
+
   # Once all jobs are ok, return the HDA IDs in the workflow history
   history_id <- status$history_id
   datasets_res <- httr::GET(
@@ -177,10 +186,10 @@ galaxy_poll_workflow <- function(invocation_id, galaxy_url = "https://usegalaxy.
     httr::add_headers(`x-api-key` = api_key)
   )
   datasets <- httr::content(datasets_res, "parsed")
-  
+
   output_ids <- sapply(datasets, function(d) if(d$state == "ok" && !isTRUE(d$deleted)) d$id else NULL)
   output_ids <- output_ids[!sapply(output_ids, is.null)]
-  
+
   return(output_ids)
 }
 
@@ -252,7 +261,7 @@ galaxy_delete_dataset <- function(dataset_id, purge = TRUE, verbose = FALSE, gal
   if (identical(api_key, "")) {
     stop("GALAXY_API_KEY environment variable is not set.")
   }
-  
+
   url <- sprintf("%s/api/datasets/%s", .rtrim(galaxy_url, "/"), dataset_id)
   if (purge) url <- paste0(url, "?purge=true")
   resp <- httr::VERB("DELETE", url, httr::add_headers(`x-api-key` = api_key))
