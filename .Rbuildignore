@@ -1,2 +1,12 @@
-^GalaxyR\.Rproj$
+^\.github$
+^\.git$
+^\.gitignore$
+^README\.Rmd$
+^README-.*\.png$
+^\.DS_Store$
+^.*\.Rproj$
 ^\.Rproj\.user$
+^LICENSE\.txt$
+^\.dockerignore$
+^Dockerfile$
+^2025-10-27_JF_R_Galaxy\.R$

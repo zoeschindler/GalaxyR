@@ -7,7 +7,7 @@
 #' @param name Name of the history to create
 #' @return history_id The ID of the created history
 #' @examples
-#' \donotrun{
+#' \dontrun{
 #' # set up your API Key in your .Renviron file first
 #' galaxy_url <- "https://usegalaxy.eu"
 #' api_key <- Sys.getenv("GALAXY_API_KEY")
@@ -34,12 +34,13 @@ galaxy_initialize <- function(name = "R API request", galaxy_url = "https://useg
 #' @param input_file Path to the local file to upload
 #' @param galaxy_url Base URL of the Galaxy instance
 #' @param galaxy_ftp FTP server address of the Galaxy instance
+#' @param history_id The ID of the Galaxy history where the dataset will be uploaded
 #'
 #' @returns dataset_id The ID of the uploaded dataset in Galaxy
 #' @export galaxy_upload
 #'
 #' @examples
-#' \donotrun{
+#' \dontrun{
 #' # set up your API Key, username and password in your .Renviron file first
 #' galaxy_url <- "https://usegalaxy.eu"
 #' galaxy_ftp <- "ftp.usegalaxy.eu"
@@ -105,7 +106,7 @@ galaxy_upload <- function(input_file, history_id, galaxy_url = "https://usegalax
 #'
 #' @returns invocation_id The ID of the started workflow invocation
 #' @export galaxy_start_workflow
-#'
+#' @importFrom stats setNames
 galaxy_start_workflow <- function(dataset_id, workflow_id, history_id = NA, galaxy_url = "https://usegalaxy.eu"){
   api_key <- Sys.getenv("GALAXY_API_KEY")
   run_url <- paste0(galaxy_url, "/api/workflows/", workflow_id, "/invocations")
@@ -234,7 +235,7 @@ galaxy_download_result <- function(output_ids, out_file = "result.laz", galaxy_u
 #' Delete a dataset (HDA) from a Galaxy instance using the Galaxy API.
 #'
 #' This function performs an HTTP DELETE against the Galaxy
-#' /api/datasets/{id} endpoint. By default it requests a purge
+#' /api/datasets/<id> endpoint. By default it requests a purge
 #' (permanent removal) by adding ?purge=true. The Galaxy API key is
 #' read from the environment variable \code{GALAXY_API_KEY}.
 #'

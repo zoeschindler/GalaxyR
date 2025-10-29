@@ -14,6 +14,8 @@ galaxy_upload(
 \arguments{
 \item{input_file}{Path to the local file to upload}
 
+\item{history_id}{The ID of the Galaxy history where the dataset will be uploaded}
+
 \item{galaxy_url}{Base URL of the Galaxy instance}
 
 \item{galaxy_ftp}{FTP server address of the Galaxy instance}
@@ -25,7 +27,7 @@ dataset_id The ID of the uploaded dataset in Galaxy
 Upload a file to Galaxy via FTP and register it in a history
 }
 \examples{
-\donotrun{
+\dontrun{
 # set up your API Key, username and password in your .Renviron file first
 galaxy_url <- "https://usegalaxy.eu"
 galaxy_ftp <- "ftp.usegalaxy.eu"

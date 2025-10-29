@@ -18,7 +18,7 @@ history_id The ID of the created history
 Start a session with the GALAXY API
 }
 \examples{
-\donotrun{
+\dontrun{
 # set up your API Key in your .Renviron file first
 galaxy_url <- "https://usegalaxy.eu"
 api_key <- Sys.getenv("GALAXY_API_KEY")
