@@ -341,3 +341,54 @@ galaxy_delete_datasets <- function(output_ids, purge = TRUE, sleep = 0.2, galaxy
 .rtrim <- function(x, char = "/") {
   sub(paste0(char, "+$"), "", x)
 }
+
+#' List Galaxy histories (name and history id)
+#'
+#' @param galaxy_url Base URL of the Galaxy instance, e.g. "https://usegalaxy.eu"
+#' @return data.frame with columns: name, history_id
+#' @export
+galaxy_list_histories <- function(galaxy_url = "https://usegalaxy.eu") {
+  if (!requireNamespace("httr", quietly = TRUE)) {
+    stop("httr package required but not installed")
+  }
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite package required but not installed")
+  }
+
+  api_key <- Sys.getenv("GALAXY_API_KEY")
+  if (identical(api_key, "") || is.na(api_key)) {
+    stop("GALAXY_API_KEY environment variable is not set")
+  }
+
+  base_url <- file.path(galaxy_url, "api", "histories")
+  limit <- 500L
+  offset <- 0L
+  all_items <- list()
+
+  repeat {
+    res <- httr::GET(
+      url = base_url,
+      httr::add_headers(`x-api-key` = api_key, `Content-Type` = "application/json"),
+      query = list(limit = limit, offset = offset)
+    )
+    httr::stop_for_status(res)
+    items <- httr::content(res, as = "parsed", simplifyVector = TRUE)
+
+    if (length(items) == 0) break
+    all_items <- c(all_items, items)
+
+    if (length(items) < limit) break
+    offset <- offset + limit
+  }
+
+  if (length(all_items) == 0) {
+    return(data.frame(name = character(0), history_id = character(0), stringsAsFactors = FALSE))
+  }
+
+  # Extract name and id (history id)
+  df <- data.frame(history_name = all_items$name, history_id = all_items$id)
+
+  # Remove possible duplicate rows and return
+  df <- unique(df)
+  return(df)
+}
