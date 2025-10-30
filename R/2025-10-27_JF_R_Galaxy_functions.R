@@ -392,3 +392,177 @@ galaxy_list_histories <- function(galaxy_url = "https://usegalaxy.eu") {
   df <- unique(df)
   return(df)
 }
+
+#' List workflow invocations for a given workflow
+#'
+#' @param workflow_id The Galaxy workflow id to list invocations for
+#' @param galaxy_url Base URL of the Galaxy instance, e.g. "https://usegalaxy.eu"
+#' @return data.frame with columns: invocation_id, workflow_id, history_id, state, create_time, update_time
+#' @export
+galaxy_list_invocations <- function(workflow_id, galaxy_url = "https://usegalaxy.eu") {
+  if (missing(workflow_id) || identical(workflow_id, "") ) {
+    stop("workflow_id is required")
+  }
+  if (!requireNamespace("httr", quietly = TRUE)) {
+    stop("httr package required but not installed")
+  }
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite package required but not installed")
+  }
+
+  api_key <- Sys.getenv("GALAXY_API_KEY")
+  if (identical(api_key, "") || is.na(api_key)) {
+    stop("GALAXY_API_KEY environment variable is not set")
+  }
+
+  # Use the workflow-specific endpoint
+  base_url <- file.path(galaxy_url, "api", "workflows", workflow_id, "invocations")
+  limit <- 50L
+  offset <- 0L
+  all_items <- list()
+
+  repeat {
+    res <- httr::GET(
+      url = base_url,
+      httr::add_headers(`x-api-key` = api_key, `Content-Type` = "application/json"),
+      query = list(limit = limit, offset = offset)
+    )
+    httr::stop_for_status(res)
+    items <- httr::content(res, as = "parsed", simplifyVector = TRUE)
+
+    if (nrow(items) == 0) break
+    if(length(all_items) == 0) {
+      all_items <- data.frame(items)
+    } else {
+      all_items <- rbind(all_items, data.frame(items))
+    }
+
+    if (nrow(items) < limit) break
+    offset <- offset + limit
+  }
+
+  # If nothing found return empty df with consistent columns
+  empty_df <- data.frame(
+    invocation_id = character(0),
+    workflow_id = character(0),
+    history_id = character(0),
+    state = character(0),
+    create_time = character(0),
+    update_time = character(0),
+    stringsAsFactors = FALSE
+  )
+  if (length(all_items) == 0) return(empty_df)
+
+  # Normalize fields (different Galaxy versions may use slightly different field names)
+  df <- as.data.frame(all_items)
+  #df <- unique(df)
+  return(df)
+}
+
+#' Get the disk usage / size of a Galaxy history
+#'
+#' The function first tries to read a size/disk_usage field from the history
+#' summary endpoint. If that is not present it fetches the history contents
+#' and sums dataset sizes (robust to a few different field names used by
+#' different Galaxy versions). Results are returned as a data.frame with
+#' bytes and a human-readable size.
+#'
+#' @param history_id Galaxy history id (required)
+#' @param galaxy_url Base URL of the Galaxy instance (default: "https://usegalaxy.eu")
+#' @param include_deleted Logical; whether to include deleted datasets when summing (default FALSE)
+#' @return data.frame with columns history_id, bytes, human_size
+#' @export
+galaxy_history_size <- function(history_id,
+                                galaxy_url = "https://usegalaxy.eu",
+                                include_deleted = FALSE) {
+  if (missing(history_id) || identical(history_id, "")) stop("history_id is required")
+  if (!requireNamespace("httr", quietly = TRUE)) stop("httr package required but not installed")
+  if (!requireNamespace("jsonlite", quietly = TRUE)) stop("jsonlite package required but not installed")
+
+  api_key <- Sys.getenv("GALAXY_API_KEY")
+  if (identical(api_key, "") || is.na(api_key)) stop("GALAXY_API_KEY environment variable is not set")
+
+  # helper: coalesce values
+  coalesce <- function(...) {
+    for (v in list(...)) {
+      if (!is.null(v)) return(v)
+    }
+    NULL
+  }
+
+  # human readable bytes
+  human_bytes <- function(bytes) {
+    if (is.na(bytes) || length(bytes) == 0) return(NA_character_)
+    b <- as.numeric(bytes)
+    if (is.na(b)) return(NA_character_)
+    units <- c("B", "KB", "MB", "GB", "TB")
+    if (b == 0) return("0 B")
+    idx <- floor(log(b, 1024))
+    idx <- pmin(idx, length(units) - 1)
+    sprintf("%.2f %s", b / (1024 ^ idx), units[idx + 1])
+  }
+
+  # 1) Try summary/history endpoint for any disk/size fields
+  history_url <- paste0(galaxy_url, "/api/histories/", history_id)
+  res <- httr::GET(history_url, httr::add_headers(`x-api-key` = api_key, `Content-Type` = "application/json"))
+  httr::stop_for_status(res)
+  hist <- httr::content(res, as = "parsed", simplifyVector = TRUE)
+
+  # possible fields used by different Galaxy versions
+  possible_history_fields <- c("disk_usage", "size", "total_size", "total_disk_usage", "usage")
+  found <- NULL
+  for (f in possible_history_fields) {
+    if (!is.null(hist[[f]])) { found <- hist[[f]]; break }
+  }
+
+  if (!is.null(found)) {
+    bytes <- as.numeric(found)
+    return(data.frame(history_id = as.character(history_id),
+                      bytes = bytes,
+                      human_size = human_bytes(bytes),
+                      stringsAsFactors = FALSE))
+  }
+
+  # 2) Fallback: list history contents and sum per-dataset size fields (paginated)
+  contents_url <- paste0(galaxy_url, "/api/histories/", history_id, "/contents")
+  limit <- 500L
+  offset <- 0L
+  total_bytes <- 0
+  repeat {
+    q <- list(limit = limit, offset = offset, deleted = if (isTRUE(include_deleted)) "True" else "False")
+    res2 <- httr::GET(contents_url, httr::add_headers(`x-api-key` = api_key, `Content-Type` = "application/json"), query = q)
+    httr::stop_for_status(res2)
+    items <- httr::content(res2, as = "parsed", simplifyVector = TRUE)
+    if (length(items) == 0) break
+
+    # each item typically has file_size or size or disk_usage; be robust
+    sizes <- vapply(items, FUN.VALUE = numeric(1), USE.NAMES = FALSE, FUN = function(it) {
+      # some items may be lists; get numeric size candidate
+      vals <- c(it[["file_size"]], it[["file_size_bytes"]], it[["size"]], it[["disk_usage"]], it[["file_size_uncompressed"]])
+      # also try nested extras if present
+      if (is.null(vals) || all(sapply(vals, is.null))) {
+        if (!is.null(it$extra) && is.list(it$extra)) {
+          vals <- c(vals, it$extra[["file_size"]], it$extra[["size"]], it$extra[["disk_usage"]])
+        }
+      }
+      # coalesce first non-null, numeric
+      for (v in vals) {
+        if (!is.null(v) && !is.na(v) && v != "") {
+          nv <- suppressWarnings(as.numeric(v))
+          if (!is.na(nv)) return(nv)
+        }
+      }
+      0
+    })
+
+    total_bytes <- total_bytes + sum(as.numeric(sizes), na.rm = TRUE)
+
+    if (length(items) < limit) break
+    offset <- offset + limit
+  }
+
+  data.frame(history_id = as.character(history_id),
+             bytes = as.numeric(total_bytes),
+             human_size = human_bytes(total_bytes),
+             stringsAsFactors = FALSE)
+}
