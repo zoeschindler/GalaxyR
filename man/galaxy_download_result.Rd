@@ -25,3 +25,27 @@ The response object from the download request for debugging
 \description{
 Download final result dataset from Galaxy
 }
+\examples{
+\dontshow{if (galaxy_has_key()) withAutoprint(\{ # examplesIf}
+# iris example
+tmp_dir <- tempdir()
+f_name <- "iris.csv"
+f_path <- paste(tmp_dir, f_name, sep = "\\\\")
+write.csv(datasets::iris, f_path, row.names = FALSE)
+
+workflows <- galaxy_list_workflows(include_public = TRUE)
+iris_workflow <- workflows[workflows$name == "Exploring Iris dataset with statistics and scatterplots",][1,]
+
+history_id <- galaxy_initialize("IRIS")
+file_id <- galaxy_upload_https(f_path, history_id)
+invocation_id <- galaxy_start_workflow(file_id, iris_workflow$id, history_id = history_id)
+dataset_ids <- galaxy_poll_workflow(invocation_id)
+
+result_files <- galaxy_get_file_info(dataset_ids$output_ids)
+head(result_files)
+galaxy_download_result(
+  list(output_ids = result_files$id[nrow(result_files)]),
+  paste(tmp_dir, result_files$name[nrow(result_files)], sep = "\\\\")
+)
+\dontshow{\}) # examplesIf}
+}

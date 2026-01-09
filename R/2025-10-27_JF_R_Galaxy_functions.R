@@ -244,6 +244,28 @@ galaxy_list_workflows <- function(
 #' @param history_id The ID of the history where the workflow will run
 #'
 #' @returns invocation_id The ID of the started workflow invocation
+#'
+#' @examplesIf galaxy_has_key()
+#' # iris example
+#' tmp_dir <- tempdir()
+#' f_name <- "iris.csv"
+#' f_path <- paste(tmp_dir, f_name, sep = "\\")
+#' write.csv(datasets::iris, f_path, row.names = FALSE)
+#'
+#' workflows <- galaxy_list_workflows(include_public = TRUE)
+#' iris_workflow <- workflows[
+#'   workflows$name == "Exploring Iris dataset with statistics and scatterplots",
+#'   ][1,]
+#'
+#' history_id <- galaxy_initialize("IRIS")
+#' file_id <- galaxy_upload_https(f_path, history_id)
+#' invocation_id <- galaxy_start_workflow(file_id, iris_workflow$id, history_id = history_id)
+#' dataset_ids <- galaxy_poll_workflow(invocation_id)
+#'
+#' result_files <- galaxy_get_file_info(dataset_ids$output_ids)
+#' head(result_files)
+#'
+#'
 #' @export galaxy_start_workflow
 #' @importFrom stats setNames
 galaxy_start_workflow <- function(dataset_id, workflow_id, history_id = NA, galaxy_url = "https://usegalaxy.eu"){
@@ -283,6 +305,28 @@ galaxy_start_workflow <- function(dataset_id, workflow_id, history_id = NA, gala
 #' @param poll_interval Time in seconds between polling attempts in seconds
 #'
 #' @returns A vector of HDA IDs corresponding to the output datasets of the workflow
+#'
+#' @examplesIf galaxy_has_key()
+#' # iris example
+#' tmp_dir <- tempdir()
+#' f_name <- "iris.csv"
+#' f_path <- paste(tmp_dir, f_name, sep = "\\")
+#' write.csv(datasets::iris, f_path, row.names = FALSE)
+#'
+#' workflows <- galaxy_list_workflows(include_public = TRUE)
+#' iris_workflow <- workflows[
+#'   workflows$name == "Exploring Iris dataset with statistics and scatterplots",
+#' ][1,]
+#'
+#' history_id <- galaxy_initialize("IRIS")
+#' file_id <- galaxy_upload_https(f_path, history_id)
+#' invocation_id <- galaxy_start_workflow(file_id, iris_workflow$id, history_id = history_id)
+#' dataset_ids <- galaxy_poll_workflow(invocation_id)
+#'
+#' result_files <- galaxy_get_file_info(dataset_ids$output_ids)
+#' head(result_files)
+#'
+#'
 #' @export galaxy_poll_workflow
 galaxy_poll_workflow <- function(invocation_id, galaxy_url = "https://usegalaxy.eu", poll_interval = 30) {
   api_key <- Sys.getenv("GALAXY_API_KEY")
@@ -359,6 +403,29 @@ galaxy_poll_workflow <- function(invocation_id, galaxy_url = "https://usegalaxy.
 #'   If the environment variable \code{GALAXY_URL} is set, it takes precedence.
 #'
 #' @returns The response object from the download request for debugging
+#'
+#' @examplesIf galaxy_has_key()
+#' # iris example
+#' tmp_dir <- tempdir()
+#' f_name <- "iris.csv"
+#' f_path <- paste(tmp_dir, f_name, sep = "\\")
+#' write.csv(datasets::iris, f_path, row.names = FALSE)
+#'
+#' workflows <- galaxy_list_workflows(include_public = TRUE)
+#' iris_workflow <- workflows[workflows$name == "Exploring Iris dataset with statistics and scatterplots",][1,]
+#'
+#' history_id <- galaxy_initialize("IRIS")
+#' file_id <- galaxy_upload_https(f_path, history_id)
+#' invocation_id <- galaxy_start_workflow(file_id, iris_workflow$id, history_id = history_id)
+#' dataset_ids <- galaxy_poll_workflow(invocation_id)
+#'
+#' result_files <- galaxy_get_file_info(dataset_ids$output_ids)
+#' head(result_files)
+#' galaxy_download_result(
+#'   list(output_ids = result_files$id[nrow(result_files)]),
+#'   paste(tmp_dir, result_files$name[nrow(result_files)], sep = "\\")
+#' )
+#'
 #' @export galaxy_download_result
 galaxy_download_result <- function(output_ids, out_file = "result.laz", galaxy_url = "https://usegalaxy.eu" ){
   if(!is.null(output_ids$output_ids)){
@@ -476,7 +543,7 @@ galaxy_delete_dataset <- function(dataset_id, purge = TRUE, verbose = FALSE, gal
 #' dataset_id <- galaxy_upload_https(input_file, history_id)
 #' dataset_id2 <- galaxy_upload_https(input_file2, history_id)
 #'
-#' galaxy_delete_datasets(c(dataset_id, dataset_id2))
+#' galaxy_delete_datasets(list(output_ids = c(dataset_id, dataset_id2)))
 #'
 #' @export galaxy_delete_datasets
 galaxy_delete_datasets <- function(output_ids, purge = TRUE, sleep = 0.2, galaxy_url = "https://usegalaxy.eu") {
@@ -1343,4 +1410,109 @@ galaxy_wait_for_job <- function(
 
     Sys.sleep(poll_interval)
   }
+}
+
+#' Get information for one or more Galaxy datasets
+#'
+#' Retrieves metadata for one or more Galaxy history datasets (HDAs),
+#' including name, size, type, state, and deletion status.
+#'
+#' @param file_ids Character vector of Galaxy dataset IDs.
+#' @param galaxy_url Character. Base URL of the Galaxy instance
+#'   (for example \code{"https://usegalaxy.eu"}).
+#'   If the environment variable \code{GALAXY_URL} is set, it takes precedence.
+#'
+#' @return
+#' A data.frame with one row per dataset and the columns:
+#' \code{id}, \code{name}, \code{size_bytes}, \code{human_size},
+#' \code{file_type}, \code{state}, \code{deleted}.
+#'
+#' @details
+#' This function queries the \code{/api/datasets/{id}} endpoint for each
+#' provided dataset ID. If a dataset cannot be retrieved, its fields
+#' are returned as \code{NA}.
+#'
+#' @examplesIf nzchar(Sys.getenv("GALAXY_API_KEY"))
+#' tmp_dir <- tempdir()
+#' f_name <- "iris.csv"
+#' f_path <- paste(tmp_dir, f_name, sep = "\\")
+#' write.csv(datasets::iris, f_path, row.names = FALSE)
+#'
+#' history_id <- galaxy_initialize("IRIS")
+#' file_id <- galaxy_upload_https(f_path, history_id)
+#' galaxy_get_file_info(file_id)
+#'
+#' @export
+galaxy_get_file_info <- function(file_ids,
+                                 galaxy_url = "https://usegalaxy.eu") {
+
+  if (missing(file_ids) || length(file_ids) == 0) {
+    stop("file_ids must be a non-empty character vector")
+  }
+
+  galaxy_url <- .resolve_galaxy_url(galaxy_url)
+
+  api_key <- Sys.getenv("GALAXY_API_KEY")
+  if (!nzchar(api_key)) {
+    stop("GALAXY_API_KEY environment variable is not set.")
+  }
+
+  # helper: human-readable bytes
+  human_bytes <- function(bytes) {
+    if (is.na(bytes) || length(bytes) == 0) return(NA_character_)
+    b <- suppressWarnings(as.numeric(bytes))
+    if (is.na(b)) return(NA_character_)
+    units <- c("B", "KB", "MB", "GB", "TB")
+    if (b == 0) return("0 B")
+    idx <- floor(log(b, 1024))
+    idx <- pmin(idx, length(units) - 1)
+    sprintf("%.2f %s", b / (1024 ^ idx), units[idx + 1])
+  }
+
+  file_ids <- as.character(file_ids)
+
+  results <- lapply(file_ids, function(fid) {
+
+    res <- try(
+      httr::GET(
+        url = paste0(galaxy_url, "/api/datasets/", fid),
+        httr::add_headers(`x-api-key` = api_key)
+      ),
+      silent = TRUE
+    )
+
+    if (inherits(res, "try-error") || httr::status_code(res) >= 400) {
+      return(data.frame(
+        id = fid,
+        name = NA_character_,
+        size_bytes = NA_real_,
+        human_size = NA_character_,
+        file_type = NA_character_,
+        state = NA_character_,
+        deleted = NA,
+        stringsAsFactors = FALSE
+      ))
+    }
+
+    ds <- httr::content(res, as = "parsed")
+
+    # robust size handling across Galaxy versions
+    size <- ds$file_size
+    if (is.null(size)) size <- ds$file_size_bytes
+    if (is.null(size)) size <- ds$disk_usage
+    size <- suppressWarnings(as.numeric(size))
+
+    data.frame(
+      id = ds$id %||% fid,
+      name = ds$name %||% NA_character_,
+      size_bytes = size,
+      human_size = human_bytes(size),
+      file_type = ds$extension %||% NA_character_,
+      state = ds$state %||% NA_character_,
+      deleted = isTRUE(ds$deleted),
+      stringsAsFactors = FALSE
+    )
+  })
+
+  do.call(rbind, results)
 }

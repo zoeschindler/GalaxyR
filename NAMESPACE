@@ -3,6 +3,7 @@
 export(galaxy_delete_dataset)
 export(galaxy_delete_datasets)
 export(galaxy_download_result)
+export(galaxy_get_file_info)
 export(galaxy_get_tool)
 export(galaxy_get_tool_id)
 export(galaxy_has_key)

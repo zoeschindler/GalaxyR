@@ -42,6 +42,6 @@ history_id <- galaxy_initialize("test upload")
 dataset_id <- galaxy_upload_https(input_file, history_id)
 dataset_id2 <- galaxy_upload_https(input_file2, history_id)
 
-galaxy_delete_datasets(c(dataset_id, dataset_id2))
+galaxy_delete_datasets(list(output_ids = c(dataset_id, dataset_id2)))
 \dontshow{\}) # examplesIf}
 }

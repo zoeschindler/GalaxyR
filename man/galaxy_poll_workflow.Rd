@@ -25,3 +25,26 @@ A vector of HDA IDs corresponding to the output datasets of the workflow
 \description{
 Poll a Galaxy workflow invocation until completion
 }
+\examples{
+\dontshow{if (galaxy_has_key()) withAutoprint(\{ # examplesIf}
+# iris example
+tmp_dir <- tempdir()
+f_name <- "iris.csv"
+f_path <- paste(tmp_dir, f_name, sep = "\\\\")
+write.csv(datasets::iris, f_path, row.names = FALSE)
+
+workflows <- galaxy_list_workflows(include_public = TRUE)
+iris_workflow <- workflows[
+  workflows$name == "Exploring Iris dataset with statistics and scatterplots",
+][1,]
+
+history_id <- galaxy_initialize("IRIS")
+file_id <- galaxy_upload_https(f_path, history_id)
+invocation_id <- galaxy_start_workflow(file_id, iris_workflow$id, history_id = history_id)
+dataset_ids <- galaxy_poll_workflow(invocation_id)
+
+result_files <- galaxy_get_file_info(dataset_ids$output_ids)
+head(result_files)
+
+\dontshow{\}) # examplesIf}
+}
