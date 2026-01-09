@@ -5,6 +5,8 @@ It allows you to manage histories, upload data, run tools and workflows, wait fo
 
 This package is designed for **automation, reproducibility, and scripting**, not UI replacement.
 
+[![R-CMD-check](https://github.com/JulFrey/GalaxyR/actions/workflows/r.yml/badge.svg)](https://github.com/JulFrey/GalaxyR/actions/workflows/r.yml)
+
 ---
 
 ## Features
