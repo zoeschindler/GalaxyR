@@ -234,66 +234,170 @@ galaxy_list_workflows <- function(
   )
 }
 
-#' Start a Galaxy workflow with a given dataset as input
+#' Retrieve input definitions for a Galaxy workflow
 #'
-#' @param dataset_id The ID of the input dataset in Galaxy
-#' @param workflow_id The ID of the workflow to run
+#' Retrieves and summarizes the input steps required by a Galaxy workflow.
+#'
+#' @param workflow_id Character. Galaxy workflow ID.
 #' @param galaxy_url Character. Base URL of the Galaxy instance
 #'   (for example \code{"https://usegalaxy.eu"}).
 #'   If the environment variable \code{GALAXY_URL} is set, it takes precedence.
-#' @param history_id The ID of the history where the workflow will run
 #'
-#' @returns invocation_id The ID of the started workflow invocation
+#' @return
+#' A data.frame with one row per workflow input and the columns:
+#' \code{step_id}, \code{name}, \code{type}, \code{optional}, \code{default}.
 #'
-#' @examplesIf galaxy_has_key()
-#' # iris example
-#' tmp_dir <- tempdir()
-#' f_name <- "iris.csv"
-#' f_path <- paste(tmp_dir, f_name, sep = "\\")
-#' write.csv(datasets::iris, f_path, row.names = FALSE)
+#' @details
+#' This function queries \code{/api/workflows/{workflow_id}} and extracts
+#' workflow input steps (data and parameter inputs). The returned
+#' \code{step_id} values must be used as names in the \code{inputs} argument
+#' of \code{\link{galaxy_start_workflow}}.
 #'
-#' workflows <- galaxy_list_workflows(include_public = TRUE)
-#' iris_workflow <- workflows[
-#'   workflows$name == "Exploring Iris dataset with statistics and scatterplots",
-#'   ][1,]
+#' @examplesIf nzchar(Sys.getenv("GALAXY_API_KEY"))
+#' \dontrun{
+#' galaxy_get_workflow_inputs("f2db41e1fa331b3e")
+#' }
 #'
-#' history_id <- galaxy_initialize("IRIS")
-#' file_id <- galaxy_upload_https(f_path, history_id)
-#' invocation_id <- galaxy_start_workflow(file_id, iris_workflow$id, history_id = history_id)
-#' dataset_ids <- galaxy_poll_workflow(invocation_id)
-#'
-#' result_files <- galaxy_get_file_info(dataset_ids$output_ids)
-#' head(result_files)
-#'
-#'
-#' @export galaxy_start_workflow
-#' @importFrom stats setNames
-galaxy_start_workflow <- function(dataset_id, workflow_id, history_id = NA, galaxy_url = "https://usegalaxy.eu"){
-  api_key <- Sys.getenv("GALAXY_API_KEY")
+#' @export
+galaxy_get_workflow_inputs <- function(
+    workflow_id,
+    galaxy_url = "https://usegalaxy.eu"
+) {
+
+  if (missing(workflow_id) || !nzchar(workflow_id)) {
+    stop("workflow_id is required.")
+  }
 
   galaxy_url <- .resolve_galaxy_url(galaxy_url)
 
-  run_url <- paste0(galaxy_url, "/api/workflows/", workflow_id, "/invocations")
-  run_body <- list(
-    inputs = setNames(list(list(src = "hda", id = dataset_id)), "0")  # map input 0
-  )
+  api_key <- Sys.getenv("GALAXY_API_KEY")
+  if (!nzchar(api_key)) {
+    stop("GALAXY_API_KEY environment variable is not set.")
+  }
 
-  # include history id in payload so the workflow runs into the specified history
-  if(!is.na(history_id)){
+  res <- httr::GET(
+    url = paste0(galaxy_url, "/api/workflows/", workflow_id),
+    httr::add_headers(`x-api-key` = api_key)
+  )
+  httr::stop_for_status(res)
+
+  wf <- httr::content(res, as = "parsed")
+  steps <- wf$steps
+
+  if (length(steps) == 0) {
+    return(data.frame(
+      step_id = character(0),
+      name = character(0),
+      type = character(0),
+      optional = logical(0),
+      default = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  inputs <- lapply(names(steps), function(step_id) {
+    step <- steps[[step_id]]
+
+    if (!step$type %in% c("data_input", "parameter_input", "data_collection_input")) {
+      return(NULL)
+    }
+
+    data.frame(
+      step_id = step_id,
+      name = step$label %||% step$name %||% NA_character_,
+      type = step$type,
+      optional = isTRUE(step$optional),
+      default = step$default_value %||% NA_character_,
+      stringsAsFactors = FALSE
+    )
+  })
+
+  inputs <- inputs[!sapply(inputs, is.null)]
+
+  if (length(inputs) == 0) {
+    return(data.frame(
+      step_id = character(0),
+      name = character(0),
+      type = character(0),
+      optional = logical(0),
+      default = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  do.call(rbind, inputs)
+}
+
+#' Start a Galaxy workflow with inputs and parameters
+#'
+#' @param dataset_id Character. ID of the input dataset (HDA).
+#'   Used only if \code{inputs} is NULL.
+#' @param workflow_id Character. Galaxy workflow ID.
+#' @param history_id Character. History ID where the workflow will run.
+#' @param inputs Named list. Optional workflow input mapping.
+#'   Keys must be workflow input step IDs (as characters).
+#'   Values must be lists describing datasets and/or parameters.
+#' @param galaxy_url Character. Base URL of the Galaxy instance.
+#'
+#' @return Character. Workflow invocation ID.
+#'
+#' @export
+#' @importFrom stats setNames
+galaxy_start_workflow <- function(
+    dataset_id,
+    workflow_id,
+    history_id = NA,
+    inputs = NULL,
+    galaxy_url = "https://usegalaxy.eu"
+) {
+
+  if (missing(workflow_id) || !nzchar(workflow_id)) {
+    stop("workflow_id is required.")
+  }
+
+  galaxy_url <- .resolve_galaxy_url(galaxy_url)
+
+  api_key <- Sys.getenv("GALAXY_API_KEY")
+  if (!nzchar(api_key)) {
+    stop("GALAXY_API_KEY environment variable is not set.")
+  }
+
+  # Build workflow inputs
+  if (is.null(inputs)) {
+    if (missing(dataset_id) || !nzchar(dataset_id)) {
+      stop("Either dataset_id or inputs must be provided.")
+    }
+
+    # Default: map dataset to workflow input step "0"
+    inputs <- setNames(
+      list(list(src = "hda", id = dataset_id)),
+      "0"
+    )
+  }
+
+  run_body <- list(inputs = inputs)
+
+  # Optional history
+  if (!is.na(history_id)) {
     run_body$history_id <- history_id
   }
 
+  run_url <- paste0(galaxy_url, "/api/workflows/", workflow_id, "/invocations")
+
   run_res <- httr::POST(
     run_url,
-    httr::add_headers(`x-api-key` = api_key, `Content-Type` = "application/json"),
+    httr::add_headers(
+      `x-api-key` = api_key,
+      `Content-Type` = "application/json"
+    ),
     body = jsonlite::toJSON(run_body, auto_unbox = TRUE)
   )
 
   httr::stop_for_status(run_res)
-  invocation <- httr::content(run_res, "parsed")
-  invocation_id <- invocation$id
-  message("Workflow invocation ID:", invocation_id, "\n")
-  return(invocation_id)
+  invocation <- httr::content(run_res, as = "parsed")
+
+  message("Workflow invocation ID: ", invocation$id)
+  invocation$id
 }
 
 #' Poll a Galaxy workflow invocation until completion
@@ -919,15 +1023,16 @@ galaxy_set_credentials <- function(api_key = NULL,
 #'
 #' @examplesIf galaxy_has_key()
 #' # All tools (flat list)
-#' galaxy_list_tools()
+#' tools_list <- galaxy_list_tools()
+#' length(tools_list)
 #'
 #' # Panel structure
-#' galaxy_list_tools(in_panel = TRUE)
+#' panel_list <- galaxy_list_tools(in_panel = TRUE)
+#' length(panel_list)
 #'
 #' # Tools from a specific panel (match by id or name)
-#' galaxy_list_tools(panel_id = "get-data")
-#' galaxy_list_tools(panel_id = "Get Data")
-#'
+#' tools_list <- galaxy_list_tools(panel_id = "Get Data")
+#' length(tools_list)
 #'
 #' @export
 galaxy_list_tools <- function(galaxy_url = "https://usegalaxy.eu",

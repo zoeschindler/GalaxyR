@@ -37,14 +37,15 @@ List tools installed on a Galaxy instance
 \examples{
 \dontshow{if (galaxy_has_key()) withAutoprint(\{ # examplesIf}
 # All tools (flat list)
-galaxy_list_tools()
+tools_list <- galaxy_list_tools()
+length(tools_list)
 
 # Panel structure
-galaxy_list_tools(in_panel = TRUE)
+panel_list <- galaxy_list_tools(in_panel = TRUE)
+length(panel_list)
 
 # Tools from a specific panel (match by id or name)
-galaxy_list_tools(panel_id = "get-data")
-galaxy_list_tools(panel_id = "Get Data")
-
+tools_list <- galaxy_list_tools(panel_id = "Get Data")
+length(tools_list)
 \dontshow{\}) # examplesIf}
 }

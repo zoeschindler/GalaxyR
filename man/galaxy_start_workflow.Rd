@@ -2,52 +2,33 @@
 % Please edit documentation in R/2025-10-27_JF_R_Galaxy_functions.R
 \name{galaxy_start_workflow}
 \alias{galaxy_start_workflow}
-\title{Start a Galaxy workflow with a given dataset as input}
+\title{Start a Galaxy workflow with inputs and parameters}
 \usage{
 galaxy_start_workflow(
   dataset_id,
   workflow_id,
   history_id = NA,
+  inputs = NULL,
   galaxy_url = "https://usegalaxy.eu"
 )
 }
 \arguments{
-\item{dataset_id}{The ID of the input dataset in Galaxy}
+\item{dataset_id}{Character. ID of the input dataset (HDA).
+Used only if \code{inputs} is NULL.}
 
-\item{workflow_id}{The ID of the workflow to run}
+\item{workflow_id}{Character. Galaxy workflow ID.}
 
-\item{history_id}{The ID of the history where the workflow will run}
+\item{history_id}{Character. History ID where the workflow will run.}
 
-\item{galaxy_url}{Character. Base URL of the Galaxy instance
-(for example \code{"https://usegalaxy.eu"}).
-If the environment variable \code{GALAXY_URL} is set, it takes precedence.}
+\item{inputs}{Named list. Optional workflow input mapping.
+Keys must be workflow input step IDs (as characters).
+Values must be lists describing datasets and/or parameters.}
+
+\item{galaxy_url}{Character. Base URL of the Galaxy instance.}
 }
 \value{
-invocation_id The ID of the started workflow invocation
+Character. Workflow invocation ID.
 }
 \description{
-Start a Galaxy workflow with a given dataset as input
-}
-\examples{
-\dontshow{if (galaxy_has_key()) withAutoprint(\{ # examplesIf}
-# iris example
-tmp_dir <- tempdir()
-f_name <- "iris.csv"
-f_path <- paste(tmp_dir, f_name, sep = "\\\\")
-write.csv(datasets::iris, f_path, row.names = FALSE)
-
-workflows <- galaxy_list_workflows(include_public = TRUE)
-iris_workflow <- workflows[
-  workflows$name == "Exploring Iris dataset with statistics and scatterplots",
-  ][1,]
-
-history_id <- galaxy_initialize("IRIS")
-file_id <- galaxy_upload_https(f_path, history_id)
-invocation_id <- galaxy_start_workflow(file_id, iris_workflow$id, history_id = history_id)
-dataset_ids <- galaxy_poll_workflow(invocation_id)
-
-result_files <- galaxy_get_file_info(dataset_ids$output_ids)
-head(result_files)
-
-\dontshow{\}) # examplesIf}
+Start a Galaxy workflow with inputs and parameters
 }
