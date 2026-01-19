@@ -1,6 +1,6 @@
-# GalaxyRTools
+# GalaxyR
 
-**GalaxyRTools** is an R package for programmatic interaction with the **Galaxy API** (tested primarily against [Galaxy Europe](https://usegalaxy.eu)).  
+**GalaxyR** is an R package for programmatic interaction with the **Galaxy API** (tested primarily against [Galaxy Europe](https://usegalaxy.eu)).  
 It allows you to manage histories, upload data, run tools and workflows, wait for jobs to complete, and download results — all directly from R.
 
 This package is designed for **automation, reproducibility, and scripting**, not UI replacement.

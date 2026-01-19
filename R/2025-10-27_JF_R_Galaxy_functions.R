@@ -953,9 +953,9 @@ galaxy_history_size <- function(history_id,
 #' \dontrun{
 #' galaxy_set_credentials(
 #'   api_key = "your-secret-key",
-#'   galaxy_url = "https://usegalaxy.eu",
 #'   username = "your-username",
-#'   password = "your-password"
+#'   password = "your-password",
+#'   galaxy_url = "https://usegalaxy.eu"
 #' )
 #' }
 #'
@@ -965,7 +965,7 @@ galaxy_set_credentials <- function(api_key = NULL,
                                   password = NULL,
                                   galaxy_url = "https://usegalaxy.eu",
                                   overwrite = TRUE) {
-  
+
   # rename inputs
   values <- list(
     GALAXY_API_KEY = api_key,
@@ -973,38 +973,38 @@ galaxy_set_credentials <- function(api_key = NULL,
     GALAXY_USERNAME = username,
     GALAXY_PASSWORD = password
   )
-  
+
   # replace previous key
   if (galaxy_has_key() & overwrite) {
     warning("There was already an API key set which will be overwritten")
   }
-  
-  # loop over inputs 
+
+  # loop over inputs
   set_values <- list()
   for (name in names(values)) {
     value <- values[[name]]
-    
+
     # skip empty values
     if (is.null(value)) {
       next
     }
-    
+
     # stop at empty strings
     if (!nzchar(value)) {
       stop(name, " must be a non-empty string.")
     }
-    
+
     # check whether environmental variable is set already
     existing <- Sys.getenv(name, unset = NA_character_)
     if (!isTRUE(overwrite) && !is.na(existing) && nzchar(existing)) {
       stop(name, " already set; use overwrite = TRUE to replace.")
     }
-    
+
     # sets variable
     do.call(Sys.setenv, as.list(structure(value, names = name)))
     set_values[[name]] <- value
   }
-  
+
   # returns list of set variables
   invisible(set_values)
 }
