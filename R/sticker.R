@@ -26,8 +26,7 @@ s <- sticker(
   imgurl, s_x = 1, s_y = 1.15, s_width = .7,
   package = "GalaxyR", p_size = 20, p_x = 1, p_y = 0.6, p_family = "Comfortaa", p_fontface = "bold",
   h_size = 2,  h_color = "#276ABE", h_fill = "#22272E",
-  filename = "logo_galaxyr_1.png")
+  filename = "logo_galaxyr.png")
 plot(s)
 
 ################################################################################
-
